@@ -202,7 +202,7 @@ pub fn constraint_rectangle<T>(
 pub fn simulate<T>(
   bodies: Vec<Body<T>>,
   steps: usize,
-  constraint: fn(Body<T>) -> Body<T>,
+  constraint: impl Fn(Body<T>) -> Body<T>,
   gravity: Vector2,
   time: std::time::Duration,
 ) -> Vec<Body<T>> {
