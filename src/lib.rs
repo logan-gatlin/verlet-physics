@@ -30,6 +30,7 @@
 
 /// An (x, y) coordinate
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Vector2(pub f32, pub f32);
 
 impl Default for Vector2 {
@@ -64,6 +65,7 @@ impl std::ops::Mul<f32> for Vector2 {
 
 /// A physically simulated body, with optional data attached
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Body<T> {
   pub current_position: Vector2,
   pub last_position: Vector2,
