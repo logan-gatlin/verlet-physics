@@ -1,0 +1,6 @@
+[package]
+name = "verlet"
+authors = ["Logan Gatlin logan@gatlintc.com"]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
