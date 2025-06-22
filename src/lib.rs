@@ -289,3 +289,16 @@ pub fn simulate_rectangle(
   serde_wasm_bindgen::to_value(&bodies)
     .map_err(|_| "Failed to create array of bodies".into())
 }
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn make_body(x: f32, y: f32, radius: f32) -> Result<JsValue, String> {
+  serde_wasm_bindgen::to_value(&Body {
+    current_position: Vector2(x, y),
+    last_position: Vector2(x, y),
+    acceleration: Vector2(0.0, 0.0),
+    radius,
+    payload: (),
+  })
+  .map_err(|_| "Failed to create body".into())
+}
