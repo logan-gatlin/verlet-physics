@@ -28,6 +28,9 @@
 //! }
 //! ```
 
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
 /// An (x, y) coordinate
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -95,12 +98,13 @@ impl<T: Default> Default for Body<T> {
 pub fn integrate<T>(
   to_integrate: Body<T>,
   gravity: Vector2,
-  dt2: f32,
+  dt: f32,
 ) -> Body<T> {
   Body {
     current_position: to_integrate.current_position
       + (to_integrate.current_position - to_integrate.last_position)
-      + (to_integrate.acceleration * dt2),
+      + (to_integrate.acceleration * dt),
+    last_position: to_integrate.current_position,
     acceleration: gravity,
     ..to_integrate
   }
@@ -174,12 +178,26 @@ pub fn constraint_rectangle<T>(
   top_left: Vector2,
   bottom_right: Vector2,
 ) -> Body<T> {
-  Body {
-    current_position: Vector2(
-      circle.current_position.0.clamp(top_left.0, bottom_right.0),
-      circle.current_position.1.clamp(top_left.1, bottom_right.1),
-    ),
-    ..circle
+  let constrained = Vector2(
+    circle
+      .current_position
+      .0
+      .clamp(top_left.0 + circle.radius, bottom_right.0 - circle.radius),
+    circle
+      .current_position
+      .1
+      .clamp(top_left.1 + circle.radius, bottom_right.1 - circle.radius),
+  );
+  if constrained != circle.current_position {
+    Body {
+      current_position: constrained,
+      last_position: constrained,
+      acceleration: circle.acceleration,
+      radius: circle.radius,
+      payload: circle.payload,
+    }
+  } else {
+    circle
   }
 }
 
@@ -206,11 +224,68 @@ pub fn simulate<T>(
   gravity: Vector2,
   time: std::time::Duration,
 ) -> Vec<Body<T>> {
-  let dt2 = time.as_secs_f32().powi(2) / (steps as f32);
-  (0..steps).into_iter().fold(bodies, |circles, _| {
-    collide_bodies(circles)
+  let dt2 = (time.as_secs_f32() / (steps as f32)).powi(2);
+  println!("{dt2}");
+  (0..steps).into_iter().fold(bodies, |bodies, _| {
+    collide_bodies(bodies)
       .into_iter()
       .map(|c| integrate(constraint(c), gravity, dt2))
       .collect()
   })
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn simulate_circle(
+  bodies: JsValue,
+  steps: usize,
+  time: f32,
+  center: JsValue,
+  radius: f32,
+  gravity: JsValue,
+) -> Result<JsValue, String> {
+  let bodies: Vec<Body<()>> = serde_wasm_bindgen::from_value(bodies)
+    .map_err(|_| "Expected array of bodies")?;
+  let center: Vector2 =
+    serde_wasm_bindgen::from_value(center).map_err(|_| "Expected Vector2")?;
+  let gravity: Vector2 =
+    serde_wasm_bindgen::from_value(gravity).map_err(|_| "Expected Vector2")?;
+  let bodies = simulate(
+    bodies,
+    steps,
+    |c| constraint_circle(c, center, radius),
+    gravity,
+    std::time::Duration::from_secs_f32(time),
+  );
+  serde_wasm_bindgen::to_value(&bodies)
+    .map_err(|_| "Failed to create array of bodies".into())
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn simulate_rectangle(
+  bodies: JsValue,
+  steps: usize,
+  time: f32,
+  top_left: JsValue,
+  bottom_right: JsValue,
+  gravity: JsValue,
+) -> Result<JsValue, String> {
+  let bodies: Vec<Body<()>> = serde_wasm_bindgen::from_value(bodies)
+    .map_err(|_| "Expected array of bodies")?;
+  let top_left: Vector2 =
+    serde_wasm_bindgen::from_value(top_left).map_err(|_| "Expected Vector2")?;
+  let bottom_right: Vector2 = serde_wasm_bindgen::from_value(bottom_right)
+    .map_err(|_| "Expected Vector2")?;
+  let gravity: Vector2 =
+    serde_wasm_bindgen::from_value(gravity).map_err(|_| "Expected Vector2")?;
+  let bodies = simulate(
+    bodies,
+    steps,
+    |c| constraint_rectangle(c, top_left, bottom_right),
+    gravity,
+    std::time::Duration::from_secs_f32(time),
+  );
+  serde_wasm_bindgen::to_value(&bodies)
+    .map_err(|_| "Failed to create array of bodies".into())
 }
