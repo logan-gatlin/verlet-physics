@@ -6,7 +6,7 @@ jobs:
       - uses: actions/rust-toolchain@stable
       - uses: actions/wasm-pack-action@v0.4.0
       - uses: actions/checkout@v4
-      - run: wasm-pack build --target web --release
+      - run: wasm-pack build --target no-modules --release
       - uses: actions/upload-artifact@v3
         with:
           path: pkg/*
