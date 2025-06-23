@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en-US">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>hello-wasm example</title>
+  <style>
+    canvas {
+      width: 500px;
+      height: 500px;
+    }
+  </style>
+  <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
+</head>
+
+<body>
+  <canvas id="canvas" width="500" height="500"></canvas>
+  <fieldset>
+    <button id="button-clear">
+      Clear circles
+    </button>
+    <input type="range" min=5 max=50 step=5 id="slider-radius" />
+    <label for="slider-size">Radius</label>
+  </fieldset>
+</body>
+<script type="module">
+  "use strict";
+  import init, {simulate_rectangle, Body, Vector2} from "/pkg/verlet.js"
+  const FPS = 35;
+  const radius_slider = document.getElementById("slider-radius");
+
+  let bodies = [];
+  let drawables = [];
+  let index = 0;
+  let stage = new createjs.Stage("canvas");
+
+  document.getElementById("button-clear").onclick = clear_circles;
+
+  function clear_circles() {
+    bodies = [];
+    drawables = [];
+    index = 0;
+    stage.removeAllChildren();
+    stage.update();
+  }
+
+  function new_circle(position, radius) {
+    const colors = ["red", "orange", "yellow", "green", "blue", "indigo", "violet"];
+    let color = colors[index % colors.length];
+
+    let circle = new createjs.Shape();
+    circle.graphics.beginFill(color).drawCircle(0, 0, radius);
+    circle.x = position.x;
+    circle.y = position.y;
+    drawables.push(circle);
+    stage.addChild(circle);
+
+    let body = new Body(position, radius, index);
+    index += 1;
+    bodies.push(body);
+  }
+
+  function update() {
+    //bodies = simulate_circle(bodies, 8, 1 / FPS * 2, [250, 250], 250, [0, 250]);
+    bodies = simulate_rectangle(
+      bodies,
+      8,
+      1 / FPS * 2,
+      new Vector2(0, 0),
+      new Vector2(500, 500),
+      new Vector2(0, 250)
+    );
+    for (let i = 0; i < bodies.length; i++) {
+      drawables[bodies[i].index].x = bodies[i].current_position.x;
+      drawables[bodies[i].index].y = bodies[i].current_position.y;
+    }
+    stage.update();
+  }
+
+  init().then(() => {
+    stage.on("stagemouseup", e => {
+      new_circle(new Vector2(e.stageX, e.stageY), radius_slider.value);
+    });
+    stage.update();
+    setInterval(update, 1 / FPS * 1000);
+  });
+</script>
+
+</html>

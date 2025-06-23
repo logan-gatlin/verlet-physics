@@ -34,11 +34,23 @@ use wasm_bindgen::prelude::*;
 /// An (x, y) coordinate
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct Vector2(pub f32, pub f32);
+#[cfg_attr(feature = "wasm", wasm_bindgen(inspectable))]
+pub struct Vector2 {
+  pub x: f32,
+  pub y: f32,
+}
+
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+impl Vector2 {
+  #[cfg_attr(feature = "wasm", wasm_bindgen(constructor))]
+  pub fn new(x: f32, y: f32) -> Vector2 {
+    Vector2 { x, y }
+  }
+}
 
 impl Default for Vector2 {
   fn default() -> Self {
-    Self(0.0, 0.0)
+    Self::new(0.0, 0.0)
   }
 }
 
@@ -46,7 +58,7 @@ impl std::ops::Add for Vector2 {
   type Output = Self;
 
   fn add(self, rhs: Self) -> Self::Output {
-    Self(self.0 + rhs.0, self.1 + rhs.1)
+    Self::new(self.x + rhs.x, self.y + rhs.y)
   }
 }
 
@@ -54,7 +66,7 @@ impl std::ops::Sub for Vector2 {
   type Output = Self;
 
   fn sub(self, rhs: Self) -> Self::Output {
-    Self(self.0 - rhs.0, self.1 - rhs.1)
+    Self::new(self.x - rhs.x, self.y - rhs.y)
   }
 }
 
@@ -62,30 +74,44 @@ impl std::ops::Mul<f32> for Vector2 {
   type Output = Self;
 
   fn mul(self, rhs: f32) -> Self::Output {
-    Self(self.0 * rhs, self.1 * rhs)
+    Self::new(self.x * rhs, self.y * rhs)
   }
 }
 
 /// A physically simulated body, with optional data attached
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct Body<T> {
+#[cfg_attr(feature = "wasm", wasm_bindgen(inspectable))]
+pub struct Body {
   pub current_position: Vector2,
   pub last_position: Vector2,
   pub acceleration: Vector2,
   pub radius: f32,
-  /// Arbitrary data such as color, text, etc
-  pub payload: T,
+  pub index: usize,
 }
 
-impl<T: Default> Default for Body<T> {
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+impl Body {
+  #[cfg_attr(feature = "wasm", wasm_bindgen(constructor))]
+  pub fn new(position: Vector2, radius: f32, index: usize) -> Self {
+    Body {
+      current_position: position,
+      last_position: position,
+      acceleration: Vector2::default(),
+      radius,
+      index,
+    }
+  }
+}
+
+impl Default for Body {
   fn default() -> Self {
     Self {
       current_position: Default::default(),
       last_position: Default::default(),
       acceleration: Default::default(),
       radius: Default::default(),
-      payload: Default::default(),
+      index: Default::default(),
     }
   }
 }
@@ -95,11 +121,8 @@ impl<T: Default> Default for Body<T> {
 /// * `to_integrate` - Body to be simulated
 /// * `gravity` - Acceleration which is applied to the body
 /// * `dt2` - Time since the last integration squared
-pub fn integrate<T>(
-  to_integrate: Body<T>,
-  gravity: Vector2,
-  dt: f32,
-) -> Body<T> {
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+pub fn integrate(to_integrate: Body, gravity: Vector2, dt: f32) -> Body {
   Body {
     current_position: to_integrate.current_position
       + (to_integrate.current_position - to_integrate.last_position)
@@ -113,58 +136,55 @@ pub fn integrate<T>(
 /// Simulate collisions between a set of bodies. As a side
 /// effect, unstable sort the bodies by their X coordinate
 /// (ascending).
-pub fn collide_bodies<T>(mut bodies: Vec<Body<T>>) -> Vec<Body<T>> {
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+pub fn collide_bodies(mut bodies: Vec<Body>) -> Vec<Body> {
   const RESPONSE_MODIFIER: f32 = 0.4;
   bodies.sort_unstable_by(|a, b| {
-    a.current_position.0.total_cmp(&b.current_position.0)
+    let a_left = a.current_position.x - a.radius;
+    let b_left = b.current_position.x - b.radius;
+    a_left.total_cmp(&b_left)
   });
 
   for i in 0..bodies.len() {
+    let mut last = bodies.len();
     for j in i..bodies.len() {
       let position1 = bodies[i].current_position;
       let position2 = bodies[j].current_position;
       let min_distance = bodies[i].radius + bodies[j].radius;
-      // Three early outs to speed up the algorithm
-      if position1.0 < position2.0 - min_distance {
-        break; // No further collisions possible
+      if position2.x > position1.x + min_distance {
+        last = j;
+        break;
       }
-      let dy = position1.1 - position2.1;
-      if dy.abs() >= min_distance {
-        continue; // Skip obvious non-collisions
-      }
-      let dx = position1.0 - position2.0;
-      let distance_squared = dx.powi(2) + dy.powi(2);
+    }
+
+    for j in i..last {
+      let position1 = bodies[i].current_position;
+      let position2 = bodies[j].current_position;
+      let min_distance = bodies[i].radius + bodies[j].radius;
+      let difference = position1 - position2;
+      let distance_squared = difference.x.powi(2) + difference.y.powi(2);
       if distance_squared >= min_distance.powi(2) || distance_squared == 0.0 {
-        continue; // Final check
+        continue; // Not colliding
       }
       let distance = distance_squared.sqrt();
-      let normal = Vector2(dx / distance, dy / distance);
+      let normal = difference * (1.0 / distance);
       let mass_ratio_1 = bodies[i].radius / min_distance;
       let mass_ratio_2 = bodies[j].radius / min_distance;
       let delta = 0.5 * RESPONSE_MODIFIER * (distance - min_distance);
-      bodies[i].current_position = bodies[i].current_position
-        - Vector2(
-          normal.0 * mass_ratio_2 * delta,
-          normal.1 * mass_ratio_2 * delta,
-        );
-      bodies[j].current_position = bodies[j].current_position
-        + Vector2(
-          normal.0 * mass_ratio_1 * delta,
-          normal.1 * mass_ratio_1 * delta,
-        );
+      bodies[i].current_position =
+        bodies[i].current_position - normal * mass_ratio_2 * delta;
+      bodies[j].current_position =
+        bodies[j].current_position + normal * mass_ratio_1 * delta;
     }
   }
   bodies
 }
 
 /// Constrain a body to the area of a circle
-pub fn constraint_circle<T>(
-  mut body: Body<T>,
-  center: Vector2,
-  radius: f32,
-) -> Body<T> {
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+pub fn constraint_circle(mut body: Body, center: Vector2, radius: f32) -> Body {
   let diff = center - body.current_position;
-  let distance = (diff.0.powi(2) + diff.1.powi(2)).sqrt();
+  let distance = (diff.x.powi(2) + diff.y.powi(2)).sqrt();
   if distance > radius - body.radius {
     let normal = diff * (1.0 / distance);
     body.current_position = center - normal * (radius - body.radius);
@@ -173,28 +193,27 @@ pub fn constraint_circle<T>(
 }
 
 /// Constrain a body to the area of a rectangle
-pub fn constraint_rectangle<T>(
-  circle: Body<T>,
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+pub fn constraint_rectangle(
+  circle: Body,
   top_left: Vector2,
   bottom_right: Vector2,
-) -> Body<T> {
-  let constrained = Vector2(
+) -> Body {
+  let constrained = Vector2::new(
     circle
       .current_position
-      .0
-      .clamp(top_left.0 + circle.radius, bottom_right.0 - circle.radius),
+      .x
+      .clamp(top_left.x + circle.radius, bottom_right.x - circle.radius),
     circle
       .current_position
-      .1
-      .clamp(top_left.1 + circle.radius, bottom_right.1 - circle.radius),
+      .y
+      .clamp(top_left.y + circle.radius, bottom_right.y - circle.radius),
   );
   if constrained != circle.current_position {
     Body {
       current_position: constrained,
       last_position: circle.current_position,
-      acceleration: circle.acceleration,
-      radius: circle.radius,
-      payload: circle.payload,
+      ..circle
     }
   } else {
     circle
@@ -217,13 +236,14 @@ pub fn constraint_rectangle<T>(
 ///   all bodies
 ///
 /// * `time` - Duration of the simulation
-pub fn simulate<T>(
-  bodies: Vec<Body<T>>,
+#[cfg(feature = "wasm")]
+pub fn simulate(
+  bodies: Vec<Body>,
   steps: usize,
-  constraint: impl Fn(Body<T>) -> Body<T>,
+  constraint: impl Fn(Body) -> Body,
   gravity: Vector2,
   time: std::time::Duration,
-) -> Vec<Body<T>> {
+) -> Vec<Body> {
   let dt2 = (time.as_secs_f32() / (steps as f32)).powi(2);
   println!("{dt2}");
   (0..steps).into_iter().fold(bodies, |bodies, _| {
@@ -238,75 +258,38 @@ pub fn simulate<T>(
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn simulate_circle(
-  bodies: JsValue,
+  bodies: Vec<Body>,
   steps: usize,
   time: f32,
-  center: JsValue,
+  center: Vector2,
   radius: f32,
-  gravity: JsValue,
-) -> Result<JsValue, String> {
-  let bodies: Vec<Body<usize>> = serde_wasm_bindgen::from_value(bodies)
-    .map_err(|_| "Expected array of bodies")?;
-  let center: Vector2 =
-    serde_wasm_bindgen::from_value(center).map_err(|_| "Expected Vector2")?;
-  let gravity: Vector2 =
-    serde_wasm_bindgen::from_value(gravity).map_err(|_| "Expected Vector2")?;
-  let bodies = simulate(
+  gravity: Vector2,
+) -> Vec<Body> {
+  simulate(
     bodies,
     steps,
-    |c| constraint_circle(c, center, radius),
+    &|c| constraint_circle(c, center, radius),
     gravity,
     std::time::Duration::from_secs_f32(time),
-  );
-  serde_wasm_bindgen::to_value(&bodies)
-    .map_err(|_| "Failed to create array of bodies".into())
+  )
 }
 
 /// Same as `simulate` with a rectangle constraint for WASM
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn simulate_rectangle(
-  bodies: JsValue,
+  bodies: Vec<Body>,
   steps: usize,
   time: f32,
-  top_left: JsValue,
-  bottom_right: JsValue,
-  gravity: JsValue,
-) -> Result<JsValue, String> {
-  let bodies: Vec<Body<usize>> = serde_wasm_bindgen::from_value(bodies)
-    .map_err(|_| "Expected array of bodies")?;
-  let top_left: Vector2 =
-    serde_wasm_bindgen::from_value(top_left).map_err(|_| "Expected Vector2")?;
-  let bottom_right: Vector2 = serde_wasm_bindgen::from_value(bottom_right)
-    .map_err(|_| "Expected Vector2")?;
-  let gravity: Vector2 =
-    serde_wasm_bindgen::from_value(gravity).map_err(|_| "Expected Vector2")?;
-  let bodies = simulate(
+  top_left: Vector2,
+  bottom_right: Vector2,
+  gravity: Vector2,
+) -> Vec<Body> {
+  simulate(
     bodies,
     steps,
-    |c| constraint_rectangle(c, top_left, bottom_right),
+    &|c| constraint_rectangle(c, top_left, bottom_right),
     gravity,
     std::time::Duration::from_secs_f32(time),
-  );
-  serde_wasm_bindgen::to_value(&bodies)
-    .map_err(|_| "Failed to create array of bodies".into())
-}
-
-/// Creates a body
-#[cfg(feature = "wasm")]
-#[wasm_bindgen]
-pub fn make_body(
-  id: usize,
-  x: f32,
-  y: f32,
-  radius: f32,
-) -> Result<JsValue, String> {
-  serde_wasm_bindgen::to_value(&Body {
-    current_position: Vector2(x, y),
-    last_position: Vector2(x, y),
-    acceleration: Vector2(0.0, 0.0),
-    radius,
-    payload: id,
-  })
-  .map_err(|_| "Failed to create body".into())
+  )
 }
