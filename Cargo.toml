@@ -26,5 +26,5 @@ codegen-units = 1
 panic = "abort"
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["--enable-bulk-memory", "-O3"]
+wasm-opt = ["--all-features", "-O3"]
 
