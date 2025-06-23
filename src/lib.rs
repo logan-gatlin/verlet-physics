@@ -191,7 +191,7 @@ pub fn constraint_rectangle<T>(
   if constrained != circle.current_position {
     Body {
       current_position: constrained,
-      last_position: constrained,
+      last_position: circle.current_position,
       acceleration: circle.acceleration,
       radius: circle.radius,
       payload: circle.payload,
