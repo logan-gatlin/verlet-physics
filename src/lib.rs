@@ -234,6 +234,7 @@ pub fn simulate<T>(
   })
 }
 
+/// Same as `simulate` with a circle constraint for WASM
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn simulate_circle(
@@ -244,7 +245,7 @@ pub fn simulate_circle(
   radius: f32,
   gravity: JsValue,
 ) -> Result<JsValue, String> {
-  let bodies: Vec<Body<()>> = serde_wasm_bindgen::from_value(bodies)
+  let bodies: Vec<Body<usize>> = serde_wasm_bindgen::from_value(bodies)
     .map_err(|_| "Expected array of bodies")?;
   let center: Vector2 =
     serde_wasm_bindgen::from_value(center).map_err(|_| "Expected Vector2")?;
@@ -261,6 +262,7 @@ pub fn simulate_circle(
     .map_err(|_| "Failed to create array of bodies".into())
 }
 
+/// Same as `simulate` with a rectangle constraint for WASM
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn simulate_rectangle(
@@ -271,7 +273,7 @@ pub fn simulate_rectangle(
   bottom_right: JsValue,
   gravity: JsValue,
 ) -> Result<JsValue, String> {
-  let bodies: Vec<Body<()>> = serde_wasm_bindgen::from_value(bodies)
+  let bodies: Vec<Body<usize>> = serde_wasm_bindgen::from_value(bodies)
     .map_err(|_| "Expected array of bodies")?;
   let top_left: Vector2 =
     serde_wasm_bindgen::from_value(top_left).map_err(|_| "Expected Vector2")?;
@@ -290,15 +292,21 @@ pub fn simulate_rectangle(
     .map_err(|_| "Failed to create array of bodies".into())
 }
 
+/// Creates a body
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
-pub fn make_body(x: f32, y: f32, radius: f32) -> Result<JsValue, String> {
+pub fn make_body(
+  id: usize,
+  x: f32,
+  y: f32,
+  radius: f32,
+) -> Result<JsValue, String> {
   serde_wasm_bindgen::to_value(&Body {
     current_position: Vector2(x, y),
     last_position: Vector2(x, y),
     acceleration: Vector2(0.0, 0.0),
     radius,
-    payload: (),
+    payload: id,
   })
   .map_err(|_| "Failed to create body".into())
 }
