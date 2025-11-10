@@ -2,16 +2,14 @@ Physics simulation for circles using verlet integration.
 
 # Usage
 ```rust
-extern crate verlet;
 use verlet::*;
 fn main() {
   let mut bodies = vec![];
 
   for i in 0..10 {
     bodies.push(Body {
-      current_position: Vector2(i as f32, 0.0),
+      current_position: Vector2::new(i as f32, 0.0),
       radius: 2.0,
-      payload: (),
       ..Default::default()
     })
   }
@@ -20,8 +18,8 @@ fn main() {
   simulate(
     bodies,
     100,
-    |c| constraint_circle(c, Vector2(0.0, 0.0), 10.0),
-    Vector2(0.0, 5.0),
+    |c| constraint_circle(c, Vector2::new(0.0, 0.0), 10.0),
+    Vector2::new(0.0, 5.0),
     std::time::Duration::from_secs(30),
   );
 }
