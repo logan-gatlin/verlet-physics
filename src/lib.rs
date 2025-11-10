@@ -95,9 +95,18 @@ pub struct Body {
 impl Body {
     #[cfg_attr(feature = "wasm", wasm_bindgen(constructor))]
     pub fn new(position: Vector2, radius: f32, index: usize) -> Self {
+        Body::new_with_velocity(position, Vector2::new(0.0, 0.0), radius, index)
+    }
+
+    pub fn new_with_velocity(
+        position: Vector2,
+        velocity: Vector2,
+        radius: f32,
+        index: usize,
+    ) -> Self {
         Body {
             current_position: position,
-            last_position: position,
+            last_position: position - velocity,
             acceleration: Vector2::default(),
             radius,
             index,
