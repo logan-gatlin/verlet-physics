@@ -227,7 +227,6 @@ pub fn simulate(
     time: std::time::Duration,
 ) -> Vec<Body> {
     let dt2 = (time.as_secs_f32() / (steps as f32)).powi(2);
-    println!("{dt2}");
     (0..steps).fold(bodies, |bodies, _| {
         collide_bodies(bodies)
             .into_iter()
